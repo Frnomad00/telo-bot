@@ -30,7 +30,7 @@ from telegram.ext import (
 
 BOT_TOKEN = "8313728401:AAGr0A6BbHjzVOVbozW_d8-bXGLqhMAVuzI"  # токен от BotFather
 ADMIN_ID  = 485184183                   # твой Telegram user_id
-PDF_PATH  = None                        # путь к PDF: "checklist.pdf" или None
+PDF_PATH  = "checklist.pdf"                        # путь к PDF: "checklist.pdf" или None
 CHANNEL   = "https://t.me/teloofsystem"
 
 # ─── СОСТОЯНИЯ ДИАЛОГА ───────────────────────────────────────────────────────
