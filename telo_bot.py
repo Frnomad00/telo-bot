@@ -15,6 +15,8 @@ Telegram-бот «Тело как система» — Дмитрий
     CALENDLY_URL — ссылка для записи в Calendly
 """
 
+import json
+import urllib.request
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -33,6 +35,7 @@ ADMIN_ID     = 485184183
 PDF_PATH     = "checklist.pdf"
 CHANNEL      = "https://t.me/teloofsystem"
 CALENDLY_URL = "https://calendly.com/frnomad00/30min"
+N8N_WEBHOOK_URL  = "https://n8n.dum35.ru/webhook/051c7e0e-d4a6-4bc5-99a7-a26987e60735"
 
 # ─── СОСТОЯНИЯ ДИАЛОГА ────────────────────────────────────────────────────────
 (
@@ -238,8 +241,44 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.warning(f"Уведомление тренеру не отправлено: {e}")
 
+    # Send to CRM
+    tg_handle = f"@{user.username}" if user.username else str(user.id)
+    await send_to_crm(ctx.user_data, tg_handle)
+
     ctx.user_data.clear()
     return ConversationHandler.END
+
+
+async def send_to_crm(data: dict, telegram: str) -> None:
+    """Send questionnaire answers to n8n → Google Sheets CRM."""
+    import asyncio
+    from datetime import datetime
+    payload = json.dumps({
+        "Дата": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Имя/Контакт": data.get("contact", ""),
+        "Telegram": telegram,
+        "Возраст": data.get("age", ""),
+        "Цель": data.get("goal", ""),
+        "Тренируется": data.get("training", ""),
+        "Помеха": data.get("problem", ""),
+        "Источник": "Бот",
+        "Этап": "Заявка",
+        "Статус": "Новый",
+    }, ensure_ascii=False).encode("utf-8")
+
+    def _post():
+        req = urllib.request.Request(
+            N8N_WEBHOOK_URL,
+            data=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+
+    try:
+        await asyncio.to_thread(_post)
+        logger.info("CRM: данные отправлены в n8n")
+    except Exception as e:
+        logger.warning(f"CRM webhook error: {e}")
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Окей, если надумаешь — напиши /start")
