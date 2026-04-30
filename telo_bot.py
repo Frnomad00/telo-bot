@@ -11,6 +11,18 @@ Telegram-бот «Тело как система» — Дмитрий
     BOT_TOKEN  — токен от BotFather
     ADMIN_ID   — твой Telegram user_id (узнать: написать @userinfobot)
     PDF_PATH   — путь к PDF-чеклисту (или оставь None — отправится текст)
+Telegram-бот «Тело как система» — Дмитрий
+==========================================
+Требования:
+    pip install python-telegram-bot
+
+Запуск:
+    python telo_bot.py
+
+Настройка (заполни перед запуском):
+    BOT_TOKEN  — токен от BotFather
+    ADMIN_ID   — твой Telegram user_id (узнать: написать @userinfobot)
+    PDF_PATH   — путь к PDF-чеклисту (или оставь None — отправится текст)
     CHANNEL    — ссылка на твой Telegram-канал
 """
 
@@ -240,12 +252,19 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
     # Финальное сообщение клиенту
+    name = contact.split()[0] if contact else "Привет"
     await update.message.reply_text(
-        f"Отлично! Всё принял 👍\n\n"
-        "Дмитрий свяжется с тобой в течение нескольких часов — "
-        "напишет сюда в Telegram и предложит удобное время для разбора.\n\n"
-        f"А пока — подпишись на канал, там разбираю реальные случаи из практики:\n"
-        f"👉 {CHANNEL}",
+        f"Отлично, {name}! Всё принял 👍\n\n"
+        "Дмитрий свяжется с тобой в течение нескольких часов.\n\n"
+        "<b>Пока ждёшь — один шаг:</b>\n\n"
+        "📞 <b>Бесплатный разбор здоровья</b> — 20 минут созвона.\n"
+        "Дмитрий посмотрит твою ситуацию конкретно: анализы, питание, "
+        "нагрузка — и скажет что делать именно тебе.\n\n"
+        f"Канал с разборами: {CHANNEL}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📞 Записаться на разбор", callback_data="signup_final")],
+        ]),
     )
 
     # Уведомление тренеру
@@ -270,6 +289,16 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     ctx.user_data.clear()
     return ConversationHandler.END
+
+
+async def signup_from_final(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Кнопка «Записаться на разбор» в финальном сообщении"""
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "Отлично! Дмитрий уже получил твои данные и свяжется в ближайшее время.\n\n"
+        "Если хочешь ускорить — напиши напрямую в Telegram.",
+    )
 
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -313,6 +342,7 @@ def main():
     )
 
     app.add_handler(conv)
+    app.add_handler(CallbackQueryHandler(signup_from_final, pattern="^signup_final$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
     logger.info("Бот запущен. Ctrl+C для остановки.")
