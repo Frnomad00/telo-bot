@@ -153,7 +153,6 @@ def get_final_message(name: str, goal: str, problem: str) -> str:
         )
 
     else:
-        # Fallback — universal message
         return (
             f"Отлично, {name}! Всё принял 👍\n\n"
             "Дмитрий свяжется с тобой в течение нескольких часов.\n\n"
@@ -173,7 +172,6 @@ def kb_returning():
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if ctx.user_data.get("completed"):
-        # Повторный пользователь
         name = ctx.user_data.get("name", "")
         greeting = f"С возвращением{', ' + name if name else ''}! 👋\n\n"
         await update.message.reply_text(
@@ -184,7 +182,6 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb_returning(),
         )
     else:
-        # Новый пользователь
         await update.message.reply_text(
             "Привет! Я бот проекта <b>«Тело как Система»</b> — Дмитрий.\n\n"
             "Помогаю мужчинам 35+ разобраться со здоровьем: вес, энергия, тренировки — "
@@ -309,11 +306,9 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     goal = d.get("goal", "")
     problem = d.get("problem", "")
 
-    # Помечаем пользователя как прошедшего анкету
     ctx.user_data["completed"] = True
     ctx.user_data["name"] = name
 
-    # ── Персонализированный ответ пользователю ────────────────────────────────
     final_text = get_final_message(name, goal, problem)
     await update.message.reply_text(
         final_text,
@@ -321,7 +316,6 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         reply_markup=kb_calendly(),
     )
 
-    # ── Уведомление тренеру ───────────────────────────────────────────────────
     tg_link = f"tg://user?id={user.id}" if user.id else "—"
     notify = (
         "🔥 <b>НОВАЯ ЗАЯВКА — Тело как система</b>\n\n"
@@ -337,7 +331,6 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.warning(f"Уведомление тренеру не отправлено: {e}")
 
-    # ── Отправка в CRM (n8n webhook) ──────────────────────────────────────────
     from datetime import datetime
     tg_handle = f"@{user.username}" if user.username else f"id:{user.id}"
     crm_payload = json.dumps({
@@ -368,6 +361,15 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     return MAIN_MENU
 
 
+async def menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Возврат в главное меню по команде /menu."""
+    await update.message.reply_text(
+        "Главное меню 👇",
+        reply_markup=kb_main(),
+    )
+    return MAIN_MENU
+
+
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Окей, если что — /start.")
     return ConversationHandler.END
@@ -392,11 +394,12 @@ def main():
             Q4_PROBLEM: [CallbackQueryHandler(q4_answer)],
             Q5_CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, q5_contact)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel), CommandHandler("menu", menu)],
         allow_reentry=True,
     )
 
     app.add_handler(conv)
+    app.add_handler(CommandHandler("menu", menu))
     logger.info("Бот запущен...")
     app.run_polling()
 
