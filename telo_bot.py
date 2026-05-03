@@ -1,13 +1,7 @@
 """
 Telegram-бот «Тело как система» — Дмитрий
 ==========================================
-Требования:
-    pip install python-telegram-bot
-
-Запуск:
-    python telo_bot.py
-
-v2 — сегментация финального сообщения по цели пользователя
+v3 — /menu, returning users, segmentation, payment
 """
 
 import json
@@ -26,32 +20,19 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# ─── НАСТРОЙКИ ────────────────────────────────────────────────────────────────
 BOT_TOKEN    = "8313728401:AAGr0A6BbHjzVOVbozW_d8-bXGLqhMAVuzI"
 ADMIN_ID     = 485184183
 PDF_PATH     = "checklist.pdf"
 CHANNEL      = "https://t.me/teloofsystem"
 CALENDLY_URL  = "https://calendly.com/frnomad00/30min"
 N8N_WEBHOOK   = "https://n8n.dum35.ru/webhook/051c7e0e-d4a6-4bc5-99a7-a26987e60735"
-PAYMENT_PHONE = os.environ.get("PAYMENT_PHONE", "")  # +7XXXXXXXXXX — задаётся в Railway
+PAYMENT_PHONE = os.environ.get("PAYMENT_PHONE", "")
 
-(
-    MAIN_MENU,
-    Q1_AGE,
-    Q2_GOAL,
-    Q3_TRAINING,
-    Q4_PROBLEM,
-    Q5_CONTACT,
-) = range(6)
+(MAIN_MENU, Q1_AGE, Q2_GOAL, Q3_TRAINING, Q4_PROBLEM, Q5_CONTACT) = range(6)
 
-# ─── ЛОГИРОВАНИЕ ──────────────────────────────────────────────────────────────
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ─── КЛАВИАТУРЫ ───────────────────────────────────────────────────────────────
 def kb_main():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📄 Хочу чеклист", callback_data="checklist")],
@@ -95,7 +76,6 @@ def kb_problem():
     ])
 
 def kb_calendly():
-    """Кнопки после анкеты: запись + оплата."""
     phone_digits = PAYMENT_PHONE.replace("+", "").replace(" ", "")
     payment_url = f"https://www.tinkoff.ru/rm/transfer/{phone_digits}?comment=Razzbor+zdorovya"
     buttons = [[InlineKeyboardButton("📅 Выбрать время для созвона", url=CALENDLY_URL)]]
@@ -103,11 +83,14 @@ def kb_calendly():
         buttons.append([InlineKeyboardButton("💳 Оплатить разбор — 5 000 ₽", url=payment_url)])
     return InlineKeyboardMarkup(buttons)
 
+def kb_returning():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 Записаться на разбор", callback_data="signup")],
+        [InlineKeyboardButton("📄 Получить чеклист", callback_data="checklist")],
+        [InlineKeyboardButton("❓ Узнать больше", callback_data="more")],
+    ])
 
-# ─── СЕГМЕНТИРОВАННЫЕ ФИНАЛЬНЫЕ СООБЩЕНИЯ ────────────────────────────────────
 def get_final_message(name: str, goal: str, problem: str) -> str:
-    """Возвращает персонализированное финальное сообщение по цели."""
-
     if goal == "Сбросить вес":
         return (
             f"{name}, принял! 👍\n\n"
@@ -118,7 +101,6 @@ def get_final_message(name: str, goal: str, problem: str) -> str:
             "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
             "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
         )
-
     elif goal == "Набрать мышцы":
         return (
             f"{name}, принял! 👍\n\n"
@@ -129,7 +111,6 @@ def get_final_message(name: str, goal: str, problem: str) -> str:
             "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
             "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
         )
-
     elif goal == "Больше энергии":
         return (
             f"{name}, принял! 👍\n\n"
@@ -140,7 +121,6 @@ def get_final_message(name: str, goal: str, problem: str) -> str:
             "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
             "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
         )
-
     elif goal == "Здоровье и анализы":
         return (
             f"{name}, принял! 👍\n\n"
@@ -151,7 +131,6 @@ def get_final_message(name: str, goal: str, problem: str) -> str:
             "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
             "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
         )
-
     else:
         return (
             f"Отлично, {name}! Всё принял 👍\n\n"
@@ -160,15 +139,6 @@ def get_final_message(name: str, goal: str, problem: str) -> str:
             "💳 После записи — оплати разбор, чтобы подтвердить бронь."
         )
 
-
-# ─── ХЕНДЛЕРЫ ─────────────────────────────────────────────────────────────────
-def kb_returning():
-    """Клавиатура для повторного пользователя."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📅 Записаться на разбор", callback_data="signup")],
-        [InlineKeyboardButton("📄 Получить чеклист", callback_data="checklist")],
-        [InlineKeyboardButton("❓ Узнать больше", callback_data="more")],
-    ])
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if ctx.user_data.get("completed"):
@@ -191,7 +161,6 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb_main(),
         )
     return MAIN_MENU
-
 
 async def send_checklist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -222,7 +191,6 @@ async def send_checklist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
     return MAIN_MENU
 
-
 async def more_info(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -238,7 +206,6 @@ async def more_info(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     return MAIN_MENU
 
-
 async def start_signup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -250,47 +217,33 @@ async def start_signup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     return Q1_AGE
 
-
 async def q1_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     ctx.user_data["age"] = query.data
-    await query.message.reply_text(
-        "<b>2/5 — Какая главная цель сейчас?</b>",
-        parse_mode="HTML", reply_markup=kb_goal(),
-    )
+    await query.message.reply_text("<b>2/5 — Какая главная цель сейчас?</b>", parse_mode="HTML", reply_markup=kb_goal())
     return Q2_GOAL
-
 
 async def q2_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     ctx.user_data["goal"] = query.data
-    await query.message.reply_text(
-        "<b>3/5 — Сейчас тренируешься?</b>",
-        parse_mode="HTML", reply_markup=kb_training(),
-    )
+    await query.message.reply_text("<b>3/5 — Сейчас тренируешься?</b>", parse_mode="HTML", reply_markup=kb_training())
     return Q3_TRAINING
-
 
 async def q3_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     ctx.user_data["training"] = query.data
-    await query.message.reply_text(
-        "<b>4/5 — Что больше всего мешает заниматься здоровьем?</b>",
-        parse_mode="HTML", reply_markup=kb_problem(),
-    )
+    await query.message.reply_text("<b>4/5 — Что больше всего мешает заниматься здоровьем?</b>", parse_mode="HTML", reply_markup=kb_problem())
     return Q4_PROBLEM
-
 
 async def q4_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     ctx.user_data["problem"] = query.data
     await query.message.reply_text(
-        "<b>5/5 — Как тебя зовут и как с тобой связаться?</b>\n\n"
-        "Напиши имя и телефон или Telegram-ник ✍️",
+        "<b>5/5 — Как тебя зовут и как с тобой связаться?</b>\n\nНапиши имя и телефон или Telegram-ник ✍️",
         parse_mode="HTML",
     )
     return Q5_CONTACT
@@ -302,19 +255,13 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     d = ctx.user_data
     user = update.effective_user
     name = contact.split()[0] if contact else "Привет"
-
     goal = d.get("goal", "")
     problem = d.get("problem", "")
-
     ctx.user_data["completed"] = True
     ctx.user_data["name"] = name
 
     final_text = get_final_message(name, goal, problem)
-    await update.message.reply_text(
-        final_text,
-        parse_mode="HTML",
-        reply_markup=kb_calendly(),
-    )
+    await update.message.reply_text(final_text, parse_mode="HTML", reply_markup=kb_calendly())
 
     tg_link = f"tg://user?id={user.id}" if user.id else "—"
     notify = (
@@ -346,40 +293,25 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Готовность": "",
         "Telegram": tg_handle,
     }).encode("utf-8")
-
     try:
-        req = urllib.request.Request(
-            N8N_WEBHOOK,
-            data=crm_payload,
-            headers={"Content-Type": "application/json"},
-        )
+        req = urllib.request.Request(N8N_WEBHOOK, data=crm_payload, headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=10)
         logger.info("CRM: данные отправлены")
     except Exception as e:
         logger.warning(f"CRM webhook не сработал: {e}")
-
     return MAIN_MENU
-
 
 async def menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Возврат в главное меню по команде /menu."""
-    await update.message.reply_text(
-        "Главное меню 👇",
-        reply_markup=kb_main(),
-    )
+    await update.message.reply_text("Главное меню 👇", reply_markup=kb_main())
     return MAIN_MENU
-
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Окей, если что — /start.")
     return ConversationHandler.END
 
-
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
 def main():
     persistence = PicklePersistence(filepath="bot_persistence.pkl")
     app = Application.builder().token(BOT_TOKEN).persistence(persistence).build()
-
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -397,12 +329,10 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel), CommandHandler("menu", menu)],
         allow_reentry=True,
     )
-
     app.add_handler(conv)
     app.add_handler(CommandHandler("menu", menu))
     logger.info("Бот запущен...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
