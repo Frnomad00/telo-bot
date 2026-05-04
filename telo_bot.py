@@ -1,7 +1,6 @@
 """
 Telegram-бот «Тело как система» — Дмитрий
-==========================================
-v3 — /menu, returning users, segmentation, payment
+v3 — /menu, returning users, segmentation, payment, anketa
 """
 
 import json
@@ -10,14 +9,9 @@ import urllib.request
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    ConversationHandler,
-    PicklePersistence,
-    filters,
-    ContextTypes,
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ConversationHandler, PicklePersistence,
+    filters, ContextTypes,
 )
 
 BOT_TOKEN    = "8313728401:AAGr0A6BbHjzVOVbozW_d8-bXGLqhMAVuzI"
@@ -27,6 +21,7 @@ CHANNEL      = "https://t.me/teloofsystem"
 CALENDLY_URL  = "https://calendly.com/frnomad00/30min"
 N8N_WEBHOOK   = "https://n8n.dum35.ru/webhook/051c7e0e-d4a6-4bc5-99a7-a26987e60735"
 PAYMENT_PHONE = os.environ.get("PAYMENT_PHONE", "")
+ANKETA_URL    = "https://frnomad00.github.io/telo-bot/anketa.html"
 
 (MAIN_MENU, Q1_AGE, Q2_GOAL, Q3_TRAINING, Q4_PROBLEM, Q5_CONTACT) = range(6)
 
@@ -78,7 +73,10 @@ def kb_problem():
 def kb_calendly():
     phone_digits = PAYMENT_PHONE.replace("+", "").replace(" ", "")
     payment_url = f"https://www.tinkoff.ru/rm/transfer/{phone_digits}?comment=Razzbor+zdorovya"
-    buttons = [[InlineKeyboardButton("📅 Выбрать время для созвона", url=CALENDLY_URL)]]
+    buttons = [
+        [InlineKeyboardButton("📅 Выбрать время для созвона", url=CALENDLY_URL)],
+        [InlineKeyboardButton("📝 Заполнить анкету (до созвона)", url=ANKETA_URL)],
+    ]
     if PAYMENT_PHONE:
         buttons.append([InlineKeyboardButton("💳 Оплатить разбор — 5 000 ₽", url=payment_url)])
     return InlineKeyboardMarkup(buttons)
@@ -92,74 +90,23 @@ def kb_returning():
 
 def get_final_message(name: str, goal: str, problem: str) -> str:
     if goal == "Сбросить вес":
-        return (
-            f"{name}, принял! 👍\n\n"
-            "После 35 вес уходит по другим правилам — не через голодовку и кардио, "
-            "а через работу с метаболизмом, гормонами и инсулином.\n\n"
-            "На разборе посмотрю твою ситуацию конкретно: что блокирует результат "
-            "и 3–5 шагов, которые реально сдвинут цифры на весах.\n\n"
-            "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
-            "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
-        )
+        return (f"{name}, принял! 👍\n\nПосле 35 вес уходит по другим правилам — не через голодовку и кардио, а через работу с метаболизмом, гормонами и инсулином.\n\nНа разборе посмотрю твою ситуацию конкретно: что блокирует результат и 3–5 шагов, которые реально сдвинут цифры на весах.\n\n<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь.")
     elif goal == "Набрать мышцы":
-        return (
-            f"{name}, принял! 👍\n\n"
-            "После 35 мышцы строятся иначе: восстановление занимает дольше, "
-            "тестостерон и гормон роста уже не те. Больше тренировок — не всегда лучше.\n\n"
-            "На разборе разберём нагрузку, питание и восстановление под твой возраст "
-            "и уровень — чтобы прогресс шёл без плато и травм.\n\n"
-            "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
-            "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
-        )
+        return (f"{name}, принял! 👍\n\nПосле 35 мышцы строятся иначе: восстановление занимает дольше, тестостерон и гормон роста уже не те. Больше тренировок — не всегда лучше.\n\nНа разборе разберём нагрузку, питание и восстановление под твой возраст и уровень — чтобы прогресс шёл без плато и травм.\n\n<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь.")
     elif goal == "Больше энергии":
-        return (
-            f"{name}, принял! 👍\n\n"
-            "«Вечером пусто, утром тяжело» — это не возраст и не лень. "
-            "Обычно за этим стоят дефициты, гормональный фон или хронический стресс.\n\n"
-            "На разборе найдём корень: посмотрим анализы или объясню, что сдать, "
-            "и дам конкретный план как вернуть стабильную энергию.\n\n"
-            "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
-            "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
-        )
+        return (f"{name}, принял! 👍\n\n«Вечером пусто, утром тяжело» — это не возраст и не лень. Обычно за этим стоят дефициты, гормональный фон или хронический стресс.\n\nНа разборе найдём корень: посмотрим анализы или объясню, что сдать, и дам конкретный план как вернуть стабильную энергию.\n\n<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь.")
     elif goal == "Здоровье и анализы":
-        return (
-            f"{name}, принял! 👍\n\n"
-            "Анализы — это карта, по которой понятно что происходит внутри. "
-            "Большинство мужчин сдают их когда уже что-то болит. Ты думаешь вперёд — это правильно.\n\n"
-            "На разборе разберём твои результаты или составим список что сдать, "
-            "объясню что значат цифры и на что обратить внимание в первую очередь.\n\n"
-            "<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n"
-            "📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь."
-        )
+        return (f"{name}, принял! 👍\n\nАнализы — это карта, по которой понятно что происходит внутри. Большинство мужчин сдают их когда уже что-то болит. Ты думаешь вперёд — это правильно.\n\nНа разборе разберём твои результаты или составим список что сдать, объясню что значат цифры и на что обратить внимание в первую очередь.\n\n<b>Дмитрий свяжется с тобой в течение нескольких часов.</b>\n\n📅 Выбери время в календаре — и оплати разбор, чтобы подтвердить бронь.")
     else:
-        return (
-            f"Отлично, {name}! Всё принял 👍\n\n"
-            "Дмитрий свяжется с тобой в течение нескольких часов.\n\n"
-            "📅 Выбери удобное время в календаре.\n"
-            "💳 После записи — оплати разбор, чтобы подтвердить бронь."
-        )
-
+        return (f"Отлично, {name}! Всё принял 👍\n\nДмитрий свяжется с тобой в течение нескольких часов.\n\n📅 Выбери удобное время в календаре.\n💳 После записи — оплати разбор, чтобы подтвердить бронь.")
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if ctx.user_data.get("completed"):
         name = ctx.user_data.get("name", "")
         greeting = f"С возвращением{', ' + name if name else ''}! 👋\n\n"
-        await update.message.reply_text(
-            greeting +
-            "Твоя заявка у меня — Дмитрий свяжется если ещё не связался.\n\n"
-            "Если хочешь записаться снова или есть вопросы — выбери:",
-            parse_mode="HTML",
-            reply_markup=kb_returning(),
-        )
+        await update.message.reply_text(greeting + "Твоя заявка у меня — Дмитрий свяжется если ещё не связался.\n\nЕсли хочешь записаться снова или есть вопросы — выбери:", parse_mode="HTML", reply_markup=kb_returning())
     else:
-        await update.message.reply_text(
-            "Привет! Я бот проекта <b>«Тело как Система»</b> — Дмитрий.\n\n"
-            "Помогаю мужчинам 35+ разобраться со здоровьем: вес, энергия, тренировки — "
-            "через анализы и систему, без лишнего.\n\n"
-            "Что хочешь?",
-            parse_mode="HTML",
-            reply_markup=kb_main(),
-        )
+        await update.message.reply_text("Привет! Я бот проекта <b>«Тело как Система»</b> — Дмитрий.\n\nПомогаю мужчинам 35+ разобраться со здоровьем: вес, энергия, тренировки — через анализы и систему, без лишнего.\n\nЧто хочешь?", parse_mode="HTML", reply_markup=kb_main())
     return MAIN_MENU
 
 async def send_checklist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -167,54 +114,21 @@ async def send_checklist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     import os
     if PDF_PATH and os.path.exists(PDF_PATH):
-        await query.message.reply_document(
-            document=open(PDF_PATH, "rb"),
-            caption=(
-                "«5 ошибок мужчин 35+ в зале» — сохрани, там без воды.\n\n"
-                "Если хочешь разобраться, что мешает тебе — "
-                "запишись на бесплатный 20-минутный разбор."
-            ),
-            reply_markup=kb_after_checklist(),
-        )
+        await query.message.reply_document(document=open(PDF_PATH, "rb"), caption="«5 ошибок мужчин 35+ в зале» — сохрани, там без воды.\n\nЕсли хочешь разобраться, что мешает тебе — запишись на бесплатный 20-минутный разбор.", reply_markup=kb_after_checklist())
     else:
-        await query.message.reply_text(
-            "Держи! 👇\n\n"
-            "📄 <b>«5 ошибок мужчин 35+ в зале»</b>\n\n"
-            "1. Тренируешься без учёта восстановления\n"
-            "2. Ешь «правильно», но не под свой метаболизм 35+\n"
-            "3. Игнорируешь анализы — а там корень проблем\n"
-            "4. Упражнения из YouTube без учёта особенностей\n"
-            "5. Нет системы — есть набор хаотичных действий\n\n"
-            "Запишись на бесплатный 20-минутный разбор.",
-            parse_mode="HTML",
-            reply_markup=kb_after_checklist(),
-        )
+        await query.message.reply_text("Держи! 👇\n\n📄 <b>«5 ошибок мужчин 35+ в зале»</b>\n\n1. Тренируешься без учёта восстановления\n2. Ешь «правильно», но не под свой метаболизм 35+\n3. Игнорируешь анализы — а там корень проблем\n4. Упражнения из YouTube без учёта особенностей\n5. Нет системы — есть набор хаотичных действий\n\nЗапишись на бесплатный 20-минутный разбор.", parse_mode="HTML", reply_markup=kb_after_checklist())
     return MAIN_MENU
 
 async def more_info(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text(
-        "Я работаю с мужчинами 35+ у которых накопилось — вес, усталость, ощущение "
-        "что тело уже не то.\n\n"
-        "Разбираю здоровье как систему: анализы → питание → тренировки → нутрицевтика.\n\n"
-        f"Канал: {CHANNEL}\n\n"
-        "Разбор — 20 минут, конкретно по твоей ситуации.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📞 Записаться", callback_data="signup")]
-        ]),
-    )
+    await query.message.reply_text(f"Я работаю с мужчинами 35+ у которых накопилось — вес, усталость, ощущение что тело уже не то.\n\nРазбираю здоровье как систему: анализы → питание → тренировки → нутрицевтика.\n\nКанал: {CHANNEL}\n\nРазбор — 20 минут, конкретно по твоей ситуации.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📞 Записаться", callback_data="signup")]]))
     return MAIN_MENU
 
 async def start_signup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text(
-        "Отлично. 5 коротких вопросов — займёт 2 минуты.\n\n"
-        "<b>1/5 — Сколько тебе лет?</b>",
-        parse_mode="HTML",
-        reply_markup=kb_age(),
-    )
+    await query.message.reply_text("Отлично. 5 коротких вопросов — займёт 2 минуты.\n\n<b>1/5 — Сколько тебе лет?</b>", parse_mode="HTML", reply_markup=kb_age())
     return Q1_AGE
 
 async def q1_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -242,10 +156,7 @@ async def q4_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     ctx.user_data["problem"] = query.data
-    await query.message.reply_text(
-        "<b>5/5 — Как тебя зовут и как с тобой связаться?</b>\n\nНапиши имя и телефон или Telegram-ник ✍️",
-        parse_mode="HTML",
-    )
+    await query.message.reply_text("<b>5/5 — Как тебя зовут и как с тобой связаться?</b>\n\nНапиши имя и телефон или Telegram-ник ✍️", parse_mode="HTML")
     return Q5_CONTACT
 
 
@@ -260,19 +171,10 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["completed"] = True
     ctx.user_data["name"] = name
 
-    final_text = get_final_message(name, goal, problem)
-    await update.message.reply_text(final_text, parse_mode="HTML", reply_markup=kb_calendly())
+    await update.message.reply_text(get_final_message(name, goal, problem), parse_mode="HTML", reply_markup=kb_calendly())
 
     tg_link = f"tg://user?id={user.id}" if user.id else "—"
-    notify = (
-        "🔥 <b>НОВАЯ ЗАЯВКА — Тело как система</b>\n\n"
-        f"Контакт: {contact}\n"
-        f"Telegram: @{user.username or '—'} | <a href='{tg_link}'>написать</a>\n\n"
-        f"Возраст: {d.get('age', '—')}\n"
-        f"Цель: {goal or '—'}\n"
-        f"Тренируется: {d.get('training', '—')}\n"
-        f"Помеха: {problem or '—'}"
-    )
+    notify = (f"🔥 <b>НОВАЯ ЗАЯВКА — Тело как система</b>\n\nКонтакт: {contact}\nTelegram: @{user.username or '—'} | <a href='{tg_link}'>написать</a>\n\nВозраст: {d.get('age','—')}\nЦель: {goal or '—'}\nТренируется: {d.get('training','—')}\nПомеха: {problem or '—'}")
     try:
         await ctx.bot.send_message(chat_id=ADMIN_ID, text=notify, parse_mode="HTML")
     except Exception as e:
@@ -280,19 +182,7 @@ async def q5_contact(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     from datetime import datetime
     tg_handle = f"@{user.username}" if user.username else f"id:{user.id}"
-    crm_payload = json.dumps({
-        "Дата": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Имя/Контакт": contact,
-        "Возраст": d.get("age", ""),
-        "Цель": goal,
-        "Опыт тренировок": d.get("training", ""),
-        "Питание": "",
-        "Восстановление": "",
-        "Боли/Ограничения": "",
-        "Мотивация": problem,
-        "Готовность": "",
-        "Telegram": tg_handle,
-    }).encode("utf-8")
+    crm_payload = json.dumps({"Дата": datetime.now().strftime("%Y-%m-%d %H:%M"), "Имя/Контакт": contact, "Возраст": d.get("age",""), "Цель": goal, "Опыт тренировок": d.get("training",""), "Питание": "", "Восстановление": "", "Боли/Ограничения": "", "Мотивация": problem, "Готовность": "", "Telegram": tg_handle}).encode("utf-8")
     try:
         req = urllib.request.Request(N8N_WEBHOOK, data=crm_payload, headers={"Content-Type": "application/json"})
         urllib.request.urlopen(req, timeout=10)
